@@ -234,6 +234,8 @@ Number = {DecNumber} | {HexNumber} | {BinNumber}
   "when"                    { return WHEN; }
   "with"                    { return WITH; }
   "while"                   { return WHILE; }
+  "keyword"                 { return KEYWORD; }
+  "operator"                { return OPERATOR_KW; }
 
   /* OOP 面向对象关键字 */
   "abstract"                { return ABSTRACT; }

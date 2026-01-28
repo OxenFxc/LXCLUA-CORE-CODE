@@ -44,7 +44,7 @@
 /* ORDER RESERVED */
 static const char *const luaX_tokens [] = {
     "and", "asm", "break", "case", "catch", "command", "const", "continue", "default", "do", "else", "elseif",
-    "end", "enum", "false", "finally", "for", "function", "global", "goto", "if", "in", "is", "keyword", "lambda", "local", "nil", "not", "or",
+    "end", "enum", "false", "finally", "for", "function", "global", "goto", "if", "in", "is", "keyword", "lambda", "local", "nil", "not", "operator", "or",
     "repeat",
     "return", "switch", "take", "then", "true", "try", "until", "when", "while", "with",
     "//", "..", "...", "==", ">=", "<=", "~",  "<<", ">>", "|>", "<|", "|?>",
@@ -52,7 +52,7 @@ static const char *const luaX_tokens [] = {
     "<let>", "=>", ":=", "->",
     /* 复合赋值运算符 */
     "+=", "-=", "*=", "/=", "//=", "%=", "&=", "|=", "~=", ">>=", "<<=", "..=", "++",
-    "?.", "??", "<=>", "$",
+    "?.", "??", "<=>", "$", "$$",
     "<number>", "<integer>", "<name>", "<string>", "<interpstring>", "<rawstring>"
 };
 
@@ -755,8 +755,12 @@ static int llex (LexState *ls, SemInfo *seminfo) {
         next(ls);
         return TK_OR;
       }
-      case '$':{  /* '$' 宏调用前缀 */
+      case '$':{  /* '$' 宏调用前缀 或 '$$' 运算符调用前缀 */
         next(ls);
+        if (ls->current == '$') {
+          next(ls);
+          return TK_DOLLDOLL;  /* $$ 运算符调用 */
+        }
         return TK_DOLLAR;
       }
       case '|':{

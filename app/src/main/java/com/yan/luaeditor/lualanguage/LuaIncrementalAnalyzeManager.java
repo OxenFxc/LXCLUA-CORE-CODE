@@ -885,6 +885,8 @@ public class LuaIncrementalAnalyzeManager
                 case WITH:
                 case GLOBAL:
                 case CONST:
+                case KEYWORD:
+                case OPERATOR_KW:
                 case ABSTRACT:
                 case CLASS:
                 case EXTENDS:

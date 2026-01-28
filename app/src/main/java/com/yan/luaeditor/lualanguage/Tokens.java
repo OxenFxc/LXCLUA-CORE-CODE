@@ -75,6 +75,8 @@ public enum Tokens {
     WITH,
     TAKE,
     WHEN,
+    KEYWORD,
+    OPERATOR_KW,
     XOR,
     QUESTION,
     EQEQ,

@@ -2042,6 +2042,93 @@ static void primaryexp (LexState *ls, expdesc *v) {
       *v = keywords_table;
       return;
     }
+    case TK_DOLLDOLL: {
+      /**
+       * 运算符调用语法: $$<运算符>(args)
+       * 等价于: _OPERATORS["<运算符>"](args)
+       * 
+       * 用于调用 operator 关键字定义的自定义运算符
+       * 示例: $$++(a) 调用 _OPERATORS["++"](a)
+       *       $$^(a, b) 调用 _OPERATORS["^"](a, b)
+       */
+      FuncState *fs = ls->fs;
+      TString *opname = NULL;
+      const char *opstr = NULL;
+      expdesc operators_table, key_exp;
+      
+      luaX_next(ls);  /* 跳过 '$$' */
+      
+      /* 解析运算符符号 */
+      int tok = ls->t.token;
+      switch (tok) {
+        case TK_PLUSPLUS: opstr = "++"; break;
+        case TK_CONCAT: opstr = ".."; break;
+        case TK_IDIV: opstr = "//"; break;
+        case TK_SHL: opstr = "<<"; break;
+        case TK_SHR: opstr = ">>"; break;
+        case TK_EQ: opstr = "=="; break;
+        case TK_NE: opstr = "~="; break;
+        case TK_LE: opstr = "<="; break;
+        case TK_GE: opstr = ">="; break;
+        case TK_PIPE: opstr = "|>"; break;
+        case TK_REVPIPE: opstr = "<|"; break;
+        case TK_SPACESHIP: opstr = "<=>"; break;
+        case TK_NULLCOAL: opstr = "??"; break;
+        case TK_ARROW: opstr = "->"; break;
+        case TK_MEAN: opstr = "=>"; break;
+        case TK_ADDEQ: opstr = "+="; break;
+        case TK_SUBEQ: opstr = "-="; break;
+        case TK_MULEQ: opstr = "*="; break;
+        case TK_DIVEQ: opstr = "/="; break;
+        case TK_MODEQ: opstr = "%="; break;
+        case '+': opstr = "+"; break;
+        case '-': opstr = "-"; break;
+        case '*': opstr = "*"; break;
+        case '/': opstr = "/"; break;
+        case '%': opstr = "%"; break;
+        case '^': opstr = "^"; break;
+        case '#': opstr = "#"; break;
+        case '&': opstr = "&"; break;
+        case '|': opstr = "|"; break;
+        case '~': opstr = "~"; break;
+        case '<': opstr = "<"; break;
+        case '>': opstr = ">"; break;
+        case '@': opstr = "@"; break;
+        case TK_NAME:
+          opname = ls->t.seminfo.ts;
+          break;
+        case TK_STRING:
+          opname = ls->t.seminfo.ts;
+          break;
+        default:
+          luaX_syntaxerror(ls, "expected operator symbol after '$$'");
+      }
+      
+      if (opstr != NULL) {
+        opname = luaS_new(ls->L, opstr);
+      }
+      
+      luaX_next(ls);  /* 跳过运算符符号 */
+      
+      /* 获取 _OPERATORS 表 */
+      singlevaraux(fs, luaS_newliteral(ls->L, "_OPERATORS"), &operators_table, 1);
+      if (operators_table.k == VVOID) {
+        /* 从 _ENV 获取 _OPERATORS */
+        expdesc env_key;
+        singlevaraux(fs, ls->envn, &operators_table, 1);
+        codestring(&env_key, luaS_newliteral(ls->L, "_OPERATORS"));
+        luaK_indexed(fs, &operators_table, &env_key);
+      }
+      
+      /* 获取 _OPERATORS[运算符] */
+      luaK_exp2anyreg(fs, &operators_table);
+      codestring(&key_exp, opname);
+      luaK_indexed(fs, &operators_table, &key_exp);
+      
+      /* 返回函数表达式，让 suffixedexp 继续处理后续的函数调用 */
+      *v = operators_table;
+      return;
+    }
     default: {
       luaX_syntaxerror(ls, "unexpected symbol");
     }
@@ -6577,6 +6664,115 @@ static void keywordstat (LexState *ls, int line) {
 }
 
 
+/*
+** operatorstat - 解析 operator 语句
+** 语法: operator <符号> (参数列表) 语句块 end
+** 功能描述：
+**   定义自定义运算符，将函数存储到 _OPERATORS 表中
+** 参数：
+**   ls - 词法状态
+**   line - 行号
+** 示例：
+**   operator ++ (a) return a + 1 end
+**   operator ** (a, b) return a ^ b end
+*/
+static void operatorstat (LexState *ls, int line) {
+  /* operatorstat -> OPERATOR <符号> body */
+  expdesc b;
+  TString *opname = NULL;
+  FuncState *fs = ls->fs;
+  const char *opstr = NULL;
+  
+  luaX_next(ls);  /* 跳过 OPERATOR */
+  
+  /* 解析运算符符号 - 支持各种符号组合 */
+  int tok = ls->t.token;
+  
+  /* 根据当前token类型获取运算符字符串 */
+  switch (tok) {
+    case TK_PLUSPLUS: opstr = "++"; break;
+    case TK_CONCAT: opstr = ".."; break;
+    case TK_IDIV: opstr = "//"; break;
+    case TK_SHL: opstr = "<<"; break;
+    case TK_SHR: opstr = ">>"; break;
+    case TK_EQ: opstr = "=="; break;
+    case TK_NE: opstr = "~="; break;
+    case TK_LE: opstr = "<="; break;
+    case TK_GE: opstr = ">="; break;
+    case TK_PIPE: opstr = "|>"; break;
+    case TK_REVPIPE: opstr = "<|"; break;
+    case TK_SPACESHIP: opstr = "<=>"; break;
+    case TK_NULLCOAL: opstr = "??"; break;
+    case TK_ARROW: opstr = "->"; break;
+    case TK_MEAN: opstr = "=>"; break;
+    case TK_ADDEQ: opstr = "+="; break;
+    case TK_SUBEQ: opstr = "-="; break;
+    case TK_MULEQ: opstr = "*="; break;
+    case TK_DIVEQ: opstr = "/="; break;
+    case TK_MODEQ: opstr = "%="; break;
+    case '+': opstr = "+"; break;
+    case '-': opstr = "-"; break;
+    case '*': opstr = "*"; break;
+    case '/': opstr = "/"; break;
+    case '%': opstr = "%"; break;
+    case '^': opstr = "^"; break;
+    case '#': opstr = "#"; break;
+    case '&': opstr = "&"; break;
+    case '|': opstr = "|"; break;
+    case '~': opstr = "~"; break;
+    case '<': opstr = "<"; break;
+    case '>': opstr = ">"; break;
+    case '@': opstr = "@"; break;
+    case TK_NAME:
+      /* 支持命名运算符如 __add, __sub 等 */
+      opname = ls->t.seminfo.ts;
+      break;
+    case TK_STRING:
+      /* 支持字符串形式的运算符如 "**" */
+      opname = ls->t.seminfo.ts;
+      break;
+    default:
+      luaX_syntaxerror(ls, "expected operator symbol after 'operator'");
+  }
+  
+  /* 如果是固定字符串，创建 TString */
+  if (opstr != NULL) {
+    opname = luaS_new(ls->L, opstr);
+  }
+  
+  luaX_next(ls);  /* 消费运算符符号 */
+  
+  /* 解析函数体 (参数列表和函数体) */
+  body(ls, &b, 0, line);
+  
+  /* 将函数注册到 _OPERATORS 表: _OPERATORS[运算符] = 函数 */
+  {
+    expdesc operators_table, key_exp;
+    
+    /* 获取 _OPERATORS 全局表 */
+    singlevaraux(fs, luaS_newliteral(ls->L, "_OPERATORS"), &operators_table, 1);
+    if (operators_table.k == VVOID) {
+      /* _OPERATORS 不存在，从 _ENV 获取 */
+      expdesc env_key;
+      singlevaraux(fs, ls->envn, &operators_table, 1);
+      codestring(&env_key, luaS_newliteral(ls->L, "_OPERATORS"));
+      luaK_indexed(fs, &operators_table, &env_key);
+    }
+    
+    /* 确保函数在寄存器中 */
+    luaK_exp2anyreg(fs, &b);
+    
+    /* 设置 _OPERATORS[运算符] = 函数 */
+    luaK_exp2anyregup(fs, &operators_table);
+    codestring(&key_exp, opname);
+    luaK_indexed(fs, &operators_table, &key_exp);
+    luaK_storevar(fs, &operators_table, &b);
+  }
+  
+  luaK_fixline(fs, line);
+}
+
+
 static void funcstat (LexState *ls, int line) {
   /* funcstat -> FUNCTION funcname body */
   int ismethod;
@@ -8048,6 +8244,10 @@ static void statement (LexState *ls) {
     }
     case TK_KEYWORD: {  /* stat -> keywordstat */
       keywordstat(ls, line);
+      break;
+    }
+    case TK_OPERATOR: {  /* stat -> operatorstat */
+      operatorstat(ls, line);
       break;
     }
     case TK_LOCAL: {  /* stat -> localstat */
