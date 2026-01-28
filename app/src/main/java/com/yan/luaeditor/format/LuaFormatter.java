@@ -132,9 +132,9 @@ public class LuaFormatter extends AsyncFormatter {
             case RCURLY:
                 return -1;
 
-            case KEYWORD:        // 动态关键字，不改变缩进
-            case OPERATOR_KW:    // 运算符重载，不改变缩进
-                return 0;
+            case KEYWORD:        // 动态关键字，增加缩进
+            case OPERATOR_KW:    // 运算符重载，增加缩进
+                return 1;
 
             default:
                 return 0;
@@ -339,8 +339,9 @@ public class LuaFormatter extends AsyncFormatter {
                         // 非行首遇到 abstract（比如在修饰符之后）
                         afterAbstract = true;
                     } else if (token == LuaTokenTypes.KEYWORD || token == LuaTokenTypes.OPERATOR_KW) {
-                        // 动态关键字和运算符重载：不改变缩进级别
-                        // 不需要额外处理，直接追加即可
+                        // 动态关键字和运算符重载：增加缩进级别
+                        level++;
+                        blockStack.push(token);
                     } else {
                         // 其他 token 的缩进处理
                         int indentChange = indent(token);
