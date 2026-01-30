@@ -1009,6 +1009,804 @@ int lief_elf_get_dynamic_entry_by_tag(Elf_Binary_Wrapper* wrapper, uint64_t tag,
  */
 int lief_elf_has_dynamic_entry(Elf_Binary_Wrapper* wrapper, uint64_t tag);
 
+/* ========== 反汇编操作 ========== */
+
+/**
+ * @brief 反汇编代码结构
+ */
+typedef struct {
+    uint64_t address;      /* 指令地址 */
+    char mnemonic[32];     /* 助记符 */
+    char operands[128];    /* 操作数字符串 */
+    char full_str[256];    /* 完整指令字符串 */
+    uint8_t raw[16];       /* 原始字节 */
+    size_t raw_size;       /* 原始字节大小 */
+    int is_call;           /* 是否为调用指令 */
+    int is_branch;         /* 是否为分支指令 */
+    int is_return;         /* 是否为返回指令 */
+} Disasm_Instruction;
+
+/**
+ * @brief 从虚拟地址反汇编
+ * @param wrapper Binary wrapper指针
+ * @param address 虚拟地址
+ * @param size 要反汇编的字节数
+ * @param out_count 输出指令数量
+ * @return 返回指令数组，需要调用lief_elf_free_disasm释放
+ */
+Disasm_Instruction* lief_elf_disassemble(Elf_Binary_Wrapper* wrapper, uint64_t address, 
+                                         size_t size, size_t* out_count);
+
+/**
+ * @brief 从缓冲区反汇编
+ * @param wrapper Binary wrapper指针
+ * @param buffer 缓冲区
+ * @param size 缓冲区大小
+ * @param address 起始地址（用于显示）
+ * @param out_count 输出指令数量
+ * @return 返回指令数组，需要调用lief_elf_free_disasm释放
+ */
+Disasm_Instruction* lief_elf_disassemble_buffer(Elf_Binary_Wrapper* wrapper, 
+                                                const uint8_t* buffer, size_t size,
+                                                uint64_t address, size_t* out_count);
+
+/**
+ * @brief 反汇编符号
+ * @param wrapper Binary wrapper指针
+ * @param symbol_name 符号名称
+ * @param out_count 输出指令数量
+ * @return 返回指令数组
+ */
+Disasm_Instruction* lief_elf_disassemble_symbol(Elf_Binary_Wrapper* wrapper, 
+                                                const char* symbol_name, size_t* out_count);
+
+/**
+ * @brief 释放反汇编结果
+ * @param instructions 指令数组
+ */
+void lief_elf_free_disasm(Disasm_Instruction* instructions);
+
+/**
+ * @brief 汇编代码
+ * @param wrapper Binary wrapper指针
+ * @param address 目标地址
+ * @param assembly 汇编代码字符串
+ * @param out_size 输出字节码大小
+ * @return 返回字节码数组，需要调用者释放
+ */
+uint8_t* lief_elf_assemble(Elf_Binary_Wrapper* wrapper, uint64_t address, 
+                           const char* assembly, size_t* out_size);
+
+/**
+ * @brief 汇编并打补丁
+ * @param wrapper Binary wrapper指针
+ * @param address 目标地址
+ * @param assembly 汇编代码字符串
+ * @return 成功返回0，失败返回-1
+ */
+int lief_elf_assemble_patch(Elf_Binary_Wrapper* wrapper, uint64_t address, 
+                            const char* assembly);
+
+/* ========== Header扩展操作 ========== */
+
+/**
+ * @brief 获取ELF类别(32/64位)
+ * @param wrapper Binary wrapper指针
+ * @return ELF类别 (1=32位, 2=64位)
+ */
+uint32_t lief_elf_get_class(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取字节序
+ * @param wrapper Binary wrapper指针
+ * @return 字节序 (1=小端, 2=大端)
+ */
+uint32_t lief_elf_get_endianness(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取版本
+ * @param wrapper Binary wrapper指针
+ * @return ELF版本
+ */
+uint32_t lief_elf_get_version(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取程序头偏移
+ * @param wrapper Binary wrapper指针
+ * @return 程序头偏移
+ */
+uint64_t lief_elf_get_program_header_offset(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取节头偏移
+ * @param wrapper Binary wrapper指针
+ * @return 节头偏移
+ */
+uint64_t lief_elf_get_section_header_offset(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取程序头条目大小
+ * @param wrapper Binary wrapper指针
+ * @return 程序头条目大小
+ */
+uint32_t lief_elf_get_program_header_size(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取节头条目大小
+ * @param wrapper Binary wrapper指针
+ * @return 节头条目大小
+ */
+uint32_t lief_elf_get_section_header_size(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取节名字符串表索引
+ * @param wrapper Binary wrapper指针
+ * @return 节名字符串表索引
+ */
+uint32_t lief_elf_get_section_name_index(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取标志
+ * @param wrapper Binary wrapper指针
+ * @return 处理器特定标志
+ */
+uint32_t lief_elf_get_header_flags(Elf_Binary_Wrapper* wrapper);
+
+/* ========== 库依赖扩展 ========== */
+
+/**
+ * @brief 获取库依赖数量
+ * @param wrapper Binary wrapper指针
+ * @return 库依赖数量
+ */
+size_t lief_elf_libraries_count(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 通过索引获取库名称
+ * @param wrapper Binary wrapper指针
+ * @param index 库索引
+ * @return 库名称
+ */
+const char* lief_elf_library_name(Elf_Binary_Wrapper* wrapper, size_t index);
+
+/* ========== 导出/导入符号 ========== */
+
+/**
+ * @brief 获取导出函数数量
+ * @param wrapper Binary wrapper指针
+ * @return 导出函数数量
+ */
+size_t lief_elf_exported_functions_count(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 通过索引获取导出函数名称
+ * @param wrapper Binary wrapper指针
+ * @param index 索引
+ * @return 函数名称
+ */
+const char* lief_elf_exported_function_name(Elf_Binary_Wrapper* wrapper, size_t index);
+
+/**
+ * @brief 通过索引获取导出函数地址
+ * @param wrapper Binary wrapper指针
+ * @param index 索引
+ * @return 函数地址
+ */
+uint64_t lief_elf_exported_function_address(Elf_Binary_Wrapper* wrapper, size_t index);
+
+/**
+ * @brief 获取导入函数数量
+ * @param wrapper Binary wrapper指针
+ * @return 导入函数数量
+ */
+size_t lief_elf_imported_functions_count(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 通过索引获取导入函数名称
+ * @param wrapper Binary wrapper指针
+ * @param index 索引
+ * @return 函数名称
+ */
+const char* lief_elf_imported_function_name(Elf_Binary_Wrapper* wrapper, size_t index);
+
+/* ========== 构造/析构函数 ========== */
+
+/**
+ * @brief 获取构造函数数量
+ * @param wrapper Binary wrapper指针
+ * @return 构造函数数量
+ */
+size_t lief_elf_ctor_functions_count(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 通过索引获取构造函数地址
+ * @param wrapper Binary wrapper指针
+ * @param index 索引
+ * @return 函数地址
+ */
+uint64_t lief_elf_ctor_function_address(Elf_Binary_Wrapper* wrapper, size_t index);
+
+/* ========== Note操作 ========== */
+
+/**
+ * @brief 获取Note数量
+ * @param wrapper Binary wrapper指针
+ * @return Note数量
+ */
+size_t lief_elf_notes_count(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 通过索引获取Note名称
+ * @param wrapper Binary wrapper指针
+ * @param index 索引
+ * @return Note名称
+ */
+const char* lief_elf_note_name(Elf_Binary_Wrapper* wrapper, size_t index);
+
+/**
+ * @brief 通过索引获取Note类型
+ * @param wrapper Binary wrapper指针
+ * @param index 索引
+ * @return Note类型
+ */
+uint32_t lief_elf_note_type(Elf_Binary_Wrapper* wrapper, size_t index);
+
+/* ========== 字符串格式化辅助 ========== */
+
+/**
+ * @brief 格式化地址为十六进制字符串
+ * @param address 地址
+ * @param buffer 输出缓冲区
+ * @param buffer_size 缓冲区大小
+ * @return 格式化后的字符串指针
+ */
+const char* lief_format_address(uint64_t address, char* buffer, size_t buffer_size);
+
+/**
+ * @brief 获取页面大小
+ * @param wrapper Binary wrapper指针
+ * @return 页面大小
+ */
+uint64_t lief_elf_page_size(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取SONAME
+ * @param wrapper Binary wrapper指针
+ * @return SONAME字符串
+ */
+const char* lief_elf_get_soname(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 设置SONAME
+ * @param wrapper Binary wrapper指针
+ * @param soname 新的SONAME
+ * @return 成功返回0，失败返回-1
+ */
+int lief_elf_set_soname(Elf_Binary_Wrapper* wrapper, const char* soname);
+
+/**
+ * @brief 获取RUNPATH
+ * @param wrapper Binary wrapper指针
+ * @return RUNPATH字符串
+ */
+const char* lief_elf_get_runpath(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 设置RUNPATH
+ * @param wrapper Binary wrapper指针
+ * @param runpath 新的RUNPATH
+ * @return 成功返回0，失败返回-1
+ */
+int lief_elf_set_runpath(Elf_Binary_Wrapper* wrapper, const char* runpath);
+
+/**
+ * @brief 获取符号版本数量
+ * @param wrapper Binary wrapper指针
+ * @return 符号版本数量
+ */
+size_t lief_elf_symbol_versions_count(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 检查是否有调试信息
+ * @param wrapper Binary wrapper指针
+ * @return 有调试信息返回1，否则返回0
+ */
+int lief_elf_has_debug_info(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取GNU Hash
+ * @param wrapper Binary wrapper指针
+ * @return 有GNU Hash返回1，否则返回0
+ */
+int lief_elf_has_gnu_hash(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 检查是否有SYSV Hash
+ * @param wrapper Binary wrapper指针
+ * @return 有SYSV Hash返回1，否则返回0
+ */
+int lief_elf_has_sysv_hash(Elf_Binary_Wrapper* wrapper);
+
+/* ========== 符号查找操作 ========== */
+
+/**
+ * @brief 检查是否有指定名称的动态符号
+ * @param wrapper Binary wrapper指针
+ * @param name 符号名称
+ * @return 存在返回1，不存在返回0
+ */
+int lief_elf_has_dynamic_symbol(Elf_Binary_Wrapper* wrapper, const char* name);
+
+/**
+ * @brief 检查是否有指定名称的symtab符号
+ * @param wrapper Binary wrapper指针
+ * @param name 符号名称
+ * @return 存在返回1，不存在返回0
+ */
+int lief_elf_has_symtab_symbol(Elf_Binary_Wrapper* wrapper, const char* name);
+
+/**
+ * @brief 通过名称获取动态符号信息
+ * @param wrapper Binary wrapper指针
+ * @param name 符号名称
+ * @param out_value 输出符号值
+ * @param out_size 输出符号大小
+ * @param out_type 输出符号类型
+ * @param out_binding 输出绑定类型
+ * @return 成功返回0，失败返回-1
+ */
+int lief_elf_get_dynamic_symbol(Elf_Binary_Wrapper* wrapper, const char* name,
+                                uint64_t* out_value, uint64_t* out_size,
+                                uint32_t* out_type, uint32_t* out_binding);
+
+/**
+ * @brief 通过名称获取symtab符号信息
+ * @param wrapper Binary wrapper指针
+ * @param name 符号名称
+ * @param out_value 输出符号值
+ * @param out_size 输出符号大小
+ * @param out_type 输出符号类型
+ * @param out_binding 输出绑定类型
+ * @return 成功返回0，失败返回-1
+ */
+int lief_elf_get_symtab_symbol(Elf_Binary_Wrapper* wrapper, const char* name,
+                               uint64_t* out_value, uint64_t* out_size,
+                               uint32_t* out_type, uint32_t* out_binding);
+
+/* ========== 重定位查找操作 ========== */
+
+/**
+ * @brief 通过地址获取重定位
+ * @param wrapper Binary wrapper指针
+ * @param address 地址
+ * @param out_type 输出重定位类型
+ * @param out_addend 输出addend
+ * @return 成功返回0，失败返回-1
+ */
+int lief_elf_get_relocation_by_address(Elf_Binary_Wrapper* wrapper, uint64_t address,
+                                       uint32_t* out_type, int64_t* out_addend);
+
+/**
+ * @brief 通过符号名获取重定位
+ * @param wrapper Binary wrapper指针
+ * @param symbol_name 符号名称
+ * @param out_address 输出地址
+ * @param out_type 输出类型
+ * @param out_addend 输出addend
+ * @return 成功返回0，失败返回-1
+ */
+int lief_elf_get_relocation_by_symbol(Elf_Binary_Wrapper* wrapper, const char* symbol_name,
+                                      uint64_t* out_address, uint32_t* out_type, int64_t* out_addend);
+
+/**
+ * @brief 获取重定位的符号名
+ * @param wrapper Binary wrapper指针
+ * @param index 重定位索引
+ * @return 符号名称，无符号返回NULL
+ */
+const char* lief_elf_relocation_symbol_name(Elf_Binary_Wrapper* wrapper, size_t index);
+
+/* ========== PLT/GOT和动态重定位 ========== */
+
+/**
+ * @brief 获取PLT/GOT重定位数量
+ * @param wrapper Binary wrapper指针
+ * @return PLT/GOT重定位数量
+ */
+size_t lief_elf_pltgot_relocations_count(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取动态重定位数量（非PLT/GOT）
+ * @param wrapper Binary wrapper指针
+ * @return 动态重定位数量
+ */
+size_t lief_elf_dynamic_relocations_count(Elf_Binary_Wrapper* wrapper);
+
+/* ========== GNU Hash符号检查 ========== */
+
+/**
+ * @brief 使用GNU Hash检查符号是否存在
+ * @param wrapper Binary wrapper指针
+ * @param symbol_name 符号名称
+ * @return 可能存在返回1，确定不存在返回0
+ */
+int lief_elf_gnu_hash_check(Elf_Binary_Wrapper* wrapper, const char* symbol_name);
+
+/* ========== 字符串提取 ========== */
+
+/**
+ * @brief 字符串结构体
+ */
+typedef struct {
+    char* str;      /* 字符串内容 */
+    uint64_t offset; /* 在文件中的偏移 */
+} Elf_String;
+
+/**
+ * @brief 从.rodata提取字符串
+ * @param wrapper Binary wrapper指针
+ * @param min_size 最小字符串长度
+ * @param out_count 输出字符串数量
+ * @return 字符串数组，需要调用lief_elf_free_strings释放
+ */
+Elf_String* lief_elf_strings(Elf_Binary_Wrapper* wrapper, size_t min_size, size_t* out_count);
+
+/**
+ * @brief 释放字符串数组
+ * @param strings 字符串数组
+ * @param count 数量
+ */
+void lief_elf_free_strings(Elf_String* strings, size_t count);
+
+/* ========== 虚拟地址操作 ========== */
+
+/**
+ * @brief 获取下一个可用虚拟地址
+ * @param wrapper Binary wrapper指针
+ * @return 下一个可用VA
+ */
+uint64_t lief_elf_next_virtual_address(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取节表最后偏移
+ * @param wrapper Binary wrapper指针
+ * @return 最后偏移
+ */
+uint64_t lief_elf_last_offset_section(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取段表最后偏移
+ * @param wrapper Binary wrapper指针
+ * @return 最后偏移
+ */
+uint64_t lief_elf_last_offset_segment(Elf_Binary_Wrapper* wrapper);
+
+/* ========== 扩展符号操作 ========== */
+
+/**
+ * @brief 移除所有同名符号(动态和symtab)
+ * @param wrapper Binary wrapper指针
+ * @param name 符号名称
+ * @return 成功返回0，失败返回-1
+ */
+int lief_elf_remove_symbol(Elf_Binary_Wrapper* wrapper, const char* name);
+
+/**
+ * @brief 获取导入符号数量
+ * @param wrapper Binary wrapper指针
+ * @return 导入符号数量
+ */
+size_t lief_elf_imported_symbols_count(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取导出符号数量
+ * @param wrapper Binary wrapper指针
+ * @return 导出符号数量
+ */
+size_t lief_elf_exported_symbols_count(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 通过索引获取导入符号名称
+ * @param wrapper Binary wrapper指针
+ * @param index 索引
+ * @return 符号名称
+ */
+const char* lief_elf_imported_symbol_name(Elf_Binary_Wrapper* wrapper, size_t index);
+
+/**
+ * @brief 通过索引获取导出符号名称
+ * @param wrapper Binary wrapper指针
+ * @param index 索引
+ * @return 符号名称
+ */
+const char* lief_elf_exported_symbol_name(Elf_Binary_Wrapper* wrapper, size_t index);
+
+/**
+ * @brief 通过索引获取导出符号值
+ * @param wrapper Binary wrapper指针
+ * @param index 索引
+ * @return 符号值
+ */
+uint64_t lief_elf_exported_symbol_value(Elf_Binary_Wrapper* wrapper, size_t index);
+
+/* ========== 安全检查 ========== */
+
+/**
+ * @brief 检查是否有RELRO保护
+ * @param wrapper Binary wrapper指针
+ * @return 0=无, 1=部分RELRO, 2=完全RELRO
+ */
+int lief_elf_relro_type(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 检查是否有栈金丝雀保护
+ * @param wrapper Binary wrapper指针
+ * @return 有返回1，无返回0
+ */
+int lief_elf_has_stack_canary(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 检查是否有FORTIFY_SOURCE
+ * @param wrapper Binary wrapper指针
+ * @return 有返回1，无返回0
+ */
+int lief_elf_has_fortify(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 检查是否有RPATH（可能有安全风险）
+ * @param wrapper Binary wrapper指针
+ * @return 有返回1，无返回0
+ */
+int lief_elf_has_rpath(Elf_Binary_Wrapper* wrapper);
+
+/* ========== Builder配置写入 ========== */
+
+/**
+ * @brief 使用自定义配置写入文件
+ * @param wrapper Binary wrapper指针
+ * @param filepath 输出路径
+ * @param rebuild_hash 是否重建hash表
+ * @param rebuild_symtab 是否重建符号表
+ * @return 成功返回0，失败返回-1
+ */
+int lief_elf_write_with_config(Elf_Binary_Wrapper* wrapper, const char* filepath,
+                               int rebuild_hash, int rebuild_symtab);
+
+/* ========== Android特定信息 ========== */
+
+/**
+ * @brief 获取Android SDK版本
+ * @param wrapper Binary wrapper指针
+ * @return SDK版本，无Android Note返回0
+ */
+uint32_t lief_elf_android_sdk_version(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取NDK版本
+ * @param wrapper Binary wrapper指针
+ * @return NDK版本字符串
+ */
+const char* lief_elf_android_ndk_version(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取NDK构建号
+ * @param wrapper Binary wrapper指针
+ * @return NDK构建号字符串
+ */
+const char* lief_elf_android_ndk_build_number(Elf_Binary_Wrapper* wrapper);
+
+/* ========== ABI信息 ========== */
+
+/**
+ * @brief 获取ABI类型
+ * @param wrapper Binary wrapper指针
+ * @return ABI类型 (0=Linux, 1=GNU, 2=Solaris, 3=FreeBSD, 4=NetBSD, 5=Syllable, 6=NaCl)
+ */
+int lief_elf_abi_type(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取ABI版本 (major, minor, patch)
+ * @param wrapper Binary wrapper指针
+ * @param out_major 输出主版本
+ * @param out_minor 输出次版本
+ * @param out_patch 输出补丁版本
+ * @return 成功返回0，失败返回-1
+ */
+int lief_elf_abi_version(Elf_Binary_Wrapper* wrapper, 
+                         uint32_t* out_major, uint32_t* out_minor, uint32_t* out_patch);
+
+/* ========== Hash表详细信息 ========== */
+
+/**
+ * @brief 获取GNU Hash符号起始索引
+ * @param wrapper Binary wrapper指针
+ * @return 符号起始索引
+ */
+uint32_t lief_elf_gnu_hash_symbol_index(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取GNU Hash桶数量
+ * @param wrapper Binary wrapper指针
+ * @return 桶数量
+ */
+uint32_t lief_elf_gnu_hash_nb_buckets(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取GNU Hash shift2值
+ * @param wrapper Binary wrapper指针
+ * @return shift2值
+ */
+uint32_t lief_elf_gnu_hash_shift2(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取GNU Hash bloom filter数量
+ * @param wrapper Binary wrapper指针
+ * @return bloom filter数量
+ */
+uint32_t lief_elf_gnu_hash_maskwords(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取SYSV Hash桶数量
+ * @param wrapper Binary wrapper指针
+ * @return 桶数量
+ */
+uint32_t lief_elf_sysv_hash_nbucket(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取SYSV Hash链数量
+ * @param wrapper Binary wrapper指针
+ * @return 链数量
+ */
+uint32_t lief_elf_sysv_hash_nchain(Elf_Binary_Wrapper* wrapper);
+
+/* ========== 符号版本信息 ========== */
+
+/**
+ * @brief 获取符号版本定义数量
+ * @param wrapper Binary wrapper指针
+ * @return 数量
+ */
+size_t lief_elf_symbol_version_definitions_count(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取符号版本需求数量
+ * @param wrapper Binary wrapper指针
+ * @return 数量
+ */
+size_t lief_elf_symbol_version_requirements_count(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取符号版本需求的库名
+ * @param wrapper Binary wrapper指针
+ * @param index 索引
+ * @return 库名
+ */
+const char* lief_elf_symbol_version_requirement_name(Elf_Binary_Wrapper* wrapper, size_t index);
+
+/* ========== 函数辅助功能 ========== */
+
+/**
+ * @brief 获取析构函数数量
+ * @param wrapper Binary wrapper指针
+ * @return 析构函数数量
+ */
+size_t lief_elf_dtor_functions_count(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取析构函数地址
+ * @param wrapper Binary wrapper指针
+ * @param index 索引
+ * @return 函数地址
+ */
+uint64_t lief_elf_dtor_function_address(Elf_Binary_Wrapper* wrapper, size_t index);
+
+/**
+ * @brief 获取所有函数数量
+ * @param wrapper Binary wrapper指针
+ * @return 函数数量
+ */
+size_t lief_elf_functions_count(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取函数名称
+ * @param wrapper Binary wrapper指针
+ * @param index 索引
+ * @return 函数名称
+ */
+const char* lief_elf_function_name(Elf_Binary_Wrapper* wrapper, size_t index);
+
+/**
+ * @brief 获取函数地址
+ * @param wrapper Binary wrapper指针
+ * @param index 索引
+ * @return 函数地址
+ */
+uint64_t lief_elf_function_address(Elf_Binary_Wrapper* wrapper, size_t index);
+
+/**
+ * @brief 通过名称获取函数地址
+ * @param wrapper Binary wrapper指针
+ * @param name 函数名称
+ * @param out_address 输出地址
+ * @return 成功返回0，失败返回-1
+ */
+int lief_elf_get_function_address(Elf_Binary_Wrapper* wrapper, const char* name, uint64_t* out_address);
+
+/* ========== 符号索引查找 ========== */
+
+/**
+ * @brief 获取动态符号索引
+ * @param wrapper Binary wrapper指针
+ * @param name 符号名称
+ * @return 索引，不存在返回-1
+ */
+int64_t lief_elf_dynsym_idx(Elf_Binary_Wrapper* wrapper, const char* name);
+
+/**
+ * @brief 获取symtab符号索引
+ * @param wrapper Binary wrapper指针
+ * @param name 符号名称
+ * @return 索引，不存在返回-1
+ */
+int64_t lief_elf_symtab_idx(Elf_Binary_Wrapper* wrapper, const char* name);
+
+/* ========== 其他辅助功能 ========== */
+
+/**
+ * @brief 检查是否有指定偏移的节
+ * @param wrapper Binary wrapper指针
+ * @param offset 偏移
+ * @return 有返回1，无返回0
+ */
+int lief_elf_has_section_with_offset(Elf_Binary_Wrapper* wrapper, uint64_t offset);
+
+/**
+ * @brief 检查是否有指定虚拟地址的节
+ * @param wrapper Binary wrapper指针
+ * @param va 虚拟地址
+ * @return 有返回1，无返回0
+ */
+int lief_elf_has_section_with_va(Elf_Binary_Wrapper* wrapper, uint64_t va);
+
+/**
+ * @brief 获取.text节索引
+ * @param wrapper Binary wrapper指针
+ * @return 索引，不存在返回-1
+ */
+int lief_elf_text_section_index(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 获取.dynamic节索引
+ * @param wrapper Binary wrapper指针
+ * @return 索引，不存在返回-1
+ */
+int lief_elf_dynamic_section_index(Elf_Binary_Wrapper* wrapper);
+
+/**
+ * @brief 删除符号版本需求
+ * @param wrapper Binary wrapper指针
+ * @param libname 库名
+ * @return 成功返回0，失败返回-1
+ */
+int lief_elf_remove_version_requirement(Elf_Binary_Wrapper* wrapper, const char* libname);
+
+/**
+ * @brief 获取重定位后的动态数组
+ * @param wrapper Binary wrapper指针
+ * @param tag 动态标签 (如INIT_ARRAY)
+ * @param out_values 输出数组
+ * @param out_count 输出数量
+ * @return 成功返回0，失败返回-1
+ */
+int lief_elf_get_relocated_dynamic_array(Elf_Binary_Wrapper* wrapper, uint64_t tag,
+                                         uint64_t** out_values, size_t* out_count);
+
+/**
+ * @brief 释放动态数组
+ * @param values 数组指针
+ */
+void lief_elf_free_dynamic_array(uint64_t* values);
+
 #ifdef __cplusplus
 }
 #endif

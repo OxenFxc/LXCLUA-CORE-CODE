@@ -29,12 +29,12 @@ LOCAL_CFLAGS := -std=c17 -O3 -flto \
                 -fstrict-aliasing \
                 -Wall -Wextra
 
-# C++编译选项 (启用异常支持以兼容LIEF库)
+# C++编译选项 (启用异常和RTTI支持以兼容LIEF库)
 LOCAL_CPPFLAGS := -std=c++17 -O3 -flto \
                   -funroll-loops -fomit-frame-pointer \
                   -ffunction-sections -fdata-sections \
                   -fstrict-aliasing \
-                  -fexceptions \
+                  -fexceptions -frtti \
                   -Wall -Wextra
 
 LOCAL_STATIC_LIBRARIES := lua LIEF_static
