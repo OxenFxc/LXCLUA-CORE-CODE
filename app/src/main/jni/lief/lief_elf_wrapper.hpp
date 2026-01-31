@@ -19,6 +19,19 @@ extern "C" {
 /* ========== 前向声明 ========== */
 typedef struct Elf_Binary_Wrapper Elf_Binary_Wrapper;
 
+/* ========== 错误信息 ========== */
+
+/**
+ * @brief 获取最后一次操作的错误信息
+ * @return 错误信息字符串，如果没有错误返回NULL
+ */
+const char* lief_get_last_error(void);
+
+/**
+ * @brief 清除错误信息
+ */
+void lief_clear_error(void);
+
 /* ========== 二进制文件操作 ========== */
 
 /**

@@ -15,6 +15,31 @@
 #include <vector>
 #include <string>
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "LIEF", __VA_ARGS__)
+#else
+#define LOGD(...)
+#endif
+
+/* ========== 错误信息存储 ========== */
+
+static thread_local std::string g_last_error;
+
+const char* lief_get_last_error(void) {
+    if (g_last_error.empty()) return nullptr;
+    return g_last_error.c_str();
+}
+
+void lief_clear_error(void) {
+    g_last_error.clear();
+}
+
+static void set_error(const std::string& msg) {
+    g_last_error = msg;
+    LOGD("Error: %s", msg.c_str());
+}
+
 /* ========== 内部结构定义 ========== */
 
 /**
@@ -1284,8 +1309,46 @@ int lief_elf_has_dynamic_entry(Elf_Binary_Wrapper* wrapper, uint64_t tag) {
 
 Disasm_Instruction* lief_elf_disassemble(Elf_Binary_Wrapper* wrapper, uint64_t address, 
                                          size_t size, size_t* out_count) {
+    lief_clear_error();
     CHECK_WRAPPER_RET(wrapper, nullptr);
-    if (!out_count) return nullptr;
+    if (!out_count) {
+        set_error("out_count parameter is null");
+        return nullptr;
+    }
+    
+    LOGD("disassemble: address=0x%llx, size=%zu", (unsigned long long)address, size);
+    
+    /* 获取可执行内容用于验证地址 */
+    auto content = wrapper->binary->get_content_from_virtual_address(address, size);
+    if (content.empty()) {
+        /* 地址无效，尝试提供更多信息 */
+        char buf[512];
+        uint64_t imagebase = wrapper->binary->imagebase();
+        
+        /* 查找.text section的地址范围 */
+        auto* text_sec = wrapper->binary->get_section(".text");
+        if (text_sec) {
+            snprintf(buf, sizeof(buf), 
+                "Cannot read content at address 0x%llx. "
+                "Imagebase=0x%llx, .text section: VA=0x%llx, Size=0x%llx. "
+                "Try using an address within the .text section range.",
+                (unsigned long long)address,
+                (unsigned long long)imagebase,
+                (unsigned long long)text_sec->virtual_address(),
+                (unsigned long long)text_sec->size());
+        } else {
+            snprintf(buf, sizeof(buf), 
+                "Cannot read content at address 0x%llx. Imagebase=0x%llx. "
+                "The address may not be mapped in the binary.",
+                (unsigned long long)address,
+                (unsigned long long)imagebase);
+        }
+        set_error(buf);
+        *out_count = 0;
+        return nullptr;
+    }
+    
+    LOGD("disassemble: got %zu bytes of content", content.size());
     
     try {
         auto insts = wrapper->binary->disassemble(address, size);
@@ -1296,7 +1359,15 @@ Disasm_Instruction* lief_elf_disassemble(Elf_Binary_Wrapper* wrapper, uint64_t a
             count++;
         }
         
+        LOGD("disassemble: found %zu instructions", count);
+        
         if (count == 0) {
+            char buf[256];
+            snprintf(buf, sizeof(buf), 
+                "No instructions found at address 0x%llx (size=%zu). "
+                "Check if address is valid and within executable section.",
+                (unsigned long long)address, size);
+            set_error(buf);
             *out_count = 0;
             return nullptr;
         }
@@ -1305,6 +1376,7 @@ Disasm_Instruction* lief_elf_disassemble(Elf_Binary_Wrapper* wrapper, uint64_t a
         auto insts2 = wrapper->binary->disassemble(address, size);
         Disasm_Instruction* result = (Disasm_Instruction*)calloc(count, sizeof(Disasm_Instruction));
         if (!result) {
+            set_error("Failed to allocate memory for instructions");
             *out_count = 0;
             return nullptr;
         }
@@ -1342,7 +1414,12 @@ Disasm_Instruction* lief_elf_disassemble(Elf_Binary_Wrapper* wrapper, uint64_t a
         
         *out_count = idx;
         return result;
+    } catch (const std::exception& e) {
+        set_error(std::string("Disassemble exception: ") + e.what());
+        *out_count = 0;
+        return nullptr;
     } catch (...) {
+        set_error("Disassemble unknown exception");
         *out_count = 0;
         return nullptr;
     }
@@ -1351,8 +1428,12 @@ Disasm_Instruction* lief_elf_disassemble(Elf_Binary_Wrapper* wrapper, uint64_t a
 Disasm_Instruction* lief_elf_disassemble_buffer(Elf_Binary_Wrapper* wrapper, 
                                                 const uint8_t* buffer, size_t size,
                                                 uint64_t address, size_t* out_count) {
+    lief_clear_error();
     CHECK_WRAPPER_RET(wrapper, nullptr);
-    if (!out_count || !buffer || size == 0) return nullptr;
+    if (!out_count || !buffer || size == 0) {
+        set_error("Invalid parameters for disassemble_buffer");
+        return nullptr;
+    }
     
     try {
         auto insts = wrapper->binary->disassemble(buffer, size, address);
@@ -1364,6 +1445,7 @@ Disasm_Instruction* lief_elf_disassemble_buffer(Elf_Binary_Wrapper* wrapper,
         }
         
         if (count == 0) {
+            set_error("No instructions found in buffer");
             *out_count = 0;
             return nullptr;
         }
@@ -1469,7 +1551,12 @@ Disasm_Instruction* lief_elf_disassemble_symbol(Elf_Binary_Wrapper* wrapper,
         
         *out_count = idx;
         return result;
+    } catch (const std::exception& e) {
+        set_error(std::string("Disassemble symbol exception: ") + e.what());
+        *out_count = 0;
+        return nullptr;
     } catch (...) {
+        set_error("Disassemble symbol unknown exception");
         *out_count = 0;
         return nullptr;
     }
@@ -1481,18 +1568,44 @@ void lief_elf_free_disasm(Disasm_Instruction* instructions) {
 
 uint8_t* lief_elf_assemble(Elf_Binary_Wrapper* wrapper, uint64_t address, 
                            const char* assembly, size_t* out_size) {
+    lief_clear_error();
     CHECK_WRAPPER_RET(wrapper, nullptr);
-    if (!assembly || !out_size) return nullptr;
+    if (!assembly || !out_size) {
+        set_error("Invalid parameters for assemble");
+        return nullptr;
+    }
+    
+    /* 获取架构信息 */
+    uint32_t machine = static_cast<uint32_t>(wrapper->binary->header().machine_type());
+    const char* arch_name = "unknown";
+    switch (machine) {
+        case 0x3: arch_name = "x86"; break;
+        case 0x3E: arch_name = "x86_64"; break;
+        case 0x28: arch_name = "ARM"; break;
+        case 0xB7: arch_name = "AArch64"; break;
+        case 0xF3: arch_name = "RISC-V"; break;
+    }
+    
+    LOGD("assemble: address=0x%llx, arch=%s(%u), asm='%s'", 
+         (unsigned long long)address, arch_name, machine, assembly);
     
     try {
         auto bytes = wrapper->binary->assemble(address, assembly);
+        LOGD("assemble: got %zu bytes", bytes.size());
         if (bytes.empty()) {
+            char buf[256];
+            snprintf(buf, sizeof(buf), 
+                "Assemble returned empty result for '%s' (arch=%s). "
+                "Ensure LIEF was compiled with LLVM support and the syntax is correct for the target architecture.",
+                assembly, arch_name);
+            set_error(buf);
             *out_size = 0;
             return nullptr;
         }
         
         uint8_t* result = (uint8_t*)malloc(bytes.size());
         if (!result) {
+            set_error("Failed to allocate memory for assembled bytes");
             *out_size = 0;
             return nullptr;
         }
@@ -1500,7 +1613,16 @@ uint8_t* lief_elf_assemble(Elf_Binary_Wrapper* wrapper, uint64_t address,
         memcpy(result, bytes.data(), bytes.size());
         *out_size = bytes.size();
         return result;
+    } catch (const std::exception& e) {
+        char buf[512];
+        snprintf(buf, sizeof(buf), "Assemble exception (arch=%s): %s", arch_name, e.what());
+        set_error(buf);
+        LOGD("assemble exception: %s", e.what());
+        *out_size = 0;
+        return nullptr;
     } catch (...) {
+        LOGD("assemble unknown exception");
+        set_error("Assemble unknown exception");
         *out_size = 0;
         return nullptr;
     }

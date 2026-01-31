@@ -54,8 +54,24 @@ static void push_address(lua_State *L, uint64_t addr) {
  * @param L Lua状态机指针
  * @param index 栈索引
  * @return 64位地址值
+ * @description 支持两种输入格式:
+ *              - 数字: 直接传入数值 如 0x1000 或 4096
+ *              - 字符串: 十六进制字符串 如 "0x1000" 或 "1000"
  */
 static uint64_t check_address(lua_State *L, int index) {
+    if (lua_type(L, index) == LUA_TSTRING) {
+        /* 支持字符串形式的十六进制地址 */
+        const char *str = lua_tostring(L, index);
+        uint64_t addr = 0;
+        if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) {
+            /* 0x前缀的十六进制 */
+            sscanf(str + 2, "%llx", (unsigned long long*)&addr);
+        } else {
+            /* 尝试解析为十六进制 */
+            sscanf(str, "%llx", (unsigned long long*)&addr);
+        }
+        return addr;
+    }
     return (uint64_t)luaL_checknumber(L, index);
 }
 
@@ -1284,18 +1300,36 @@ static int lua_elf_read_from_va(lua_State *L) {
  * @brief 从偏移获取节
  * @param L Lua状态机指针
  * @return 返回1
- * @description Lua调用: index = binary:section_from_offset(offset)
+ * @description Lua调用: section = binary:section_from_offset(offset)
+ *              返回节信息表或nil
  */
 static int lua_elf_section_from_offset(lua_State *L) {
     Elf_Binary_Wrapper *wrapper = check_elf_binary(L, 1);
     uint64_t offset = (uint64_t)luaL_checkinteger(L, 2);
     
     int idx = lief_elf_section_from_offset(wrapper, offset);
-    if (idx >= 0) {
-        lua_pushinteger(L, idx + 1);
-    } else {
+    if (idx < 0) {
         lua_pushnil(L);
+        return 1;
     }
+    
+    /* 返回节信息表 */
+    lua_newtable(L);
+    lua_pushstring(L, lief_elf_section_name(wrapper, idx));
+    lua_setfield(L, -2, "name");
+    push_address(L, lief_elf_section_virtual_address(wrapper, idx));
+    lua_setfield(L, -2, "virtual_address");
+    push_address(L, lief_elf_section_size(wrapper, idx));
+    lua_setfield(L, -2, "size");
+    push_address(L, lief_elf_section_offset(wrapper, idx));
+    lua_setfield(L, -2, "offset");
+    lua_pushinteger(L, lief_elf_section_type(wrapper, idx));
+    lua_setfield(L, -2, "type");
+    push_address(L, lief_elf_section_flags(wrapper, idx));
+    lua_setfield(L, -2, "flags");
+    lua_pushinteger(L, idx + 1);
+    lua_setfield(L, -2, "index");
+    
     return 1;
 }
 
@@ -1303,18 +1337,36 @@ static int lua_elf_section_from_offset(lua_State *L) {
  * @brief 从虚拟地址获取节
  * @param L Lua状态机指针
  * @return 返回1
- * @description Lua调用: index = binary:section_from_va(va)
+ * @description Lua调用: section = binary:section_from_va(va)
+ *              返回节信息表或nil
  */
 static int lua_elf_section_from_va(lua_State *L) {
     Elf_Binary_Wrapper *wrapper = check_elf_binary(L, 1);
     uint64_t va = (uint64_t)luaL_checkinteger(L, 2);
     
     int idx = lief_elf_section_from_va(wrapper, va);
-    if (idx >= 0) {
-        lua_pushinteger(L, idx + 1);
-    } else {
+    if (idx < 0) {
         lua_pushnil(L);
+        return 1;
     }
+    
+    /* 返回节信息表 */
+    lua_newtable(L);
+    lua_pushstring(L, lief_elf_section_name(wrapper, idx));
+    lua_setfield(L, -2, "name");
+    push_address(L, lief_elf_section_virtual_address(wrapper, idx));
+    lua_setfield(L, -2, "virtual_address");
+    push_address(L, lief_elf_section_size(wrapper, idx));
+    lua_setfield(L, -2, "size");
+    push_address(L, lief_elf_section_offset(wrapper, idx));
+    lua_setfield(L, -2, "offset");
+    lua_pushinteger(L, lief_elf_section_type(wrapper, idx));
+    lua_setfield(L, -2, "type");
+    push_address(L, lief_elf_section_flags(wrapper, idx));
+    lua_setfield(L, -2, "flags");
+    lua_pushinteger(L, idx + 1);
+    lua_setfield(L, -2, "index");
+    
     return 1;
 }
 
@@ -1322,18 +1374,36 @@ static int lua_elf_section_from_va(lua_State *L) {
  * @brief 从偏移获取段
  * @param L Lua状态机指针
  * @return 返回1
- * @description Lua调用: index = binary:segment_from_offset(offset)
+ * @description Lua调用: segment = binary:segment_from_offset(offset)
+ *              返回段信息表或nil
  */
 static int lua_elf_segment_from_offset(lua_State *L) {
     Elf_Binary_Wrapper *wrapper = check_elf_binary(L, 1);
     uint64_t offset = (uint64_t)luaL_checkinteger(L, 2);
     
     int idx = lief_elf_segment_from_offset(wrapper, offset);
-    if (idx >= 0) {
-        lua_pushinteger(L, idx + 1);
-    } else {
+    if (idx < 0) {
         lua_pushnil(L);
+        return 1;
     }
+    
+    /* 返回段信息表 */
+    lua_newtable(L);
+    lua_pushinteger(L, lief_elf_segment_type(wrapper, idx));
+    lua_setfield(L, -2, "type");
+    lua_pushinteger(L, lief_elf_segment_flags(wrapper, idx));
+    lua_setfield(L, -2, "flags");
+    push_address(L, lief_elf_segment_virtual_address(wrapper, idx));
+    lua_setfield(L, -2, "virtual_address");
+    push_address(L, lief_elf_segment_virtual_size(wrapper, idx));
+    lua_setfield(L, -2, "virtual_size");
+    push_address(L, lief_elf_segment_offset(wrapper, idx));
+    lua_setfield(L, -2, "offset");
+    push_address(L, lief_elf_segment_file_size(wrapper, idx));
+    lua_setfield(L, -2, "file_size");
+    lua_pushinteger(L, idx + 1);
+    lua_setfield(L, -2, "index");
+    
     return 1;
 }
 
@@ -1341,18 +1411,36 @@ static int lua_elf_segment_from_offset(lua_State *L) {
  * @brief 从虚拟地址获取段
  * @param L Lua状态机指针
  * @return 返回1
- * @description Lua调用: index = binary:segment_from_va(va)
+ * @description Lua调用: segment = binary:segment_from_va(va)
+ *              返回段信息表或nil
  */
 static int lua_elf_segment_from_va(lua_State *L) {
     Elf_Binary_Wrapper *wrapper = check_elf_binary(L, 1);
     uint64_t va = (uint64_t)luaL_checkinteger(L, 2);
     
     int idx = lief_elf_segment_from_va(wrapper, va);
-    if (idx >= 0) {
-        lua_pushinteger(L, idx + 1);
-    } else {
+    if (idx < 0) {
         lua_pushnil(L);
+        return 1;
     }
+    
+    /* 返回段信息表 */
+    lua_newtable(L);
+    lua_pushinteger(L, lief_elf_segment_type(wrapper, idx));
+    lua_setfield(L, -2, "type");
+    lua_pushinteger(L, lief_elf_segment_flags(wrapper, idx));
+    lua_setfield(L, -2, "flags");
+    push_address(L, lief_elf_segment_virtual_address(wrapper, idx));
+    lua_setfield(L, -2, "virtual_address");
+    push_address(L, lief_elf_segment_virtual_size(wrapper, idx));
+    lua_setfield(L, -2, "virtual_size");
+    push_address(L, lief_elf_segment_offset(wrapper, idx));
+    lua_setfield(L, -2, "offset");
+    push_address(L, lief_elf_segment_file_size(wrapper, idx));
+    lua_setfield(L, -2, "file_size");
+    lua_pushinteger(L, idx + 1);
+    lua_setfield(L, -2, "index");
+    
     return 1;
 }
 
@@ -1494,8 +1582,8 @@ static int lua_elf_destroy(lua_State *L) {
 /**
  * @brief 反汇编指定地址的代码
  * @param L Lua状态机指针
- * @return 返回1
- * @description Lua调用: instructions = binary:disassemble(address, size)
+ * @return 返回1或2 (成功返回指令表，失败返回nil和错误信息)
+ * @description Lua调用: instructions, err = binary:disassemble(address, size)
  */
 static int lua_elf_disassemble(lua_State *L) {
     Elf_Binary_Wrapper *wrapper = check_elf_binary(L, 1);
@@ -1506,8 +1594,10 @@ static int lua_elf_disassemble(lua_State *L) {
     Disasm_Instruction *insts = lief_elf_disassemble(wrapper, address, size, &count);
     
     if (!insts || count == 0) {
-        lua_newtable(L);
-        return 1;
+        lua_pushnil(L);
+        const char *err = lief_get_last_error();
+        lua_pushstring(L, err ? err : "Disassemble failed (no instructions found)");
+        return 2;
     }
     
     lua_newtable(L);
@@ -1551,8 +1641,8 @@ static int lua_elf_disassemble(lua_State *L) {
 /**
  * @brief 反汇编缓冲区
  * @param L Lua状态机指针
- * @return 返回1
- * @description Lua调用: instructions = binary:disassemble_buffer(data, address)
+ * @return 返回1或2 (成功返回指令表，失败返回nil和错误信息)
+ * @description Lua调用: instructions, err = binary:disassemble_buffer(data, address)
  */
 static int lua_elf_disassemble_buffer(lua_State *L) {
     Elf_Binary_Wrapper *wrapper = check_elf_binary(L, 1);
@@ -1564,8 +1654,10 @@ static int lua_elf_disassemble_buffer(lua_State *L) {
     Disasm_Instruction *insts = lief_elf_disassemble_buffer(wrapper, (const uint8_t*)data, size, address, &count);
     
     if (!insts || count == 0) {
-        lua_newtable(L);
-        return 1;
+        lua_pushnil(L);
+        const char *err = lief_get_last_error();
+        lua_pushstring(L, err ? err : "Disassemble buffer failed");
+        return 2;
     }
     
     lua_newtable(L);
@@ -1609,8 +1701,8 @@ static int lua_elf_disassemble_buffer(lua_State *L) {
 /**
  * @brief 反汇编符号
  * @param L Lua状态机指针
- * @return 返回1
- * @description Lua调用: instructions = binary:disassemble_symbol(name)
+ * @return 返回1或2 (成功返回指令表，失败返回nil和错误信息)
+ * @description Lua调用: instructions, err = binary:disassemble_symbol(name)
  */
 static int lua_elf_disassemble_symbol(lua_State *L) {
     Elf_Binary_Wrapper *wrapper = check_elf_binary(L, 1);
@@ -1620,8 +1712,10 @@ static int lua_elf_disassemble_symbol(lua_State *L) {
     Disasm_Instruction *insts = lief_elf_disassemble_symbol(wrapper, name, &count);
     
     if (!insts || count == 0) {
-        lua_newtable(L);
-        return 1;
+        lua_pushnil(L);
+        const char *err = lief_get_last_error();
+        lua_pushstring(L, err ? err : "Disassemble symbol failed");
+        return 2;
     }
     
     lua_newtable(L);
@@ -1656,8 +1750,8 @@ static int lua_elf_disassemble_symbol(lua_State *L) {
 /**
  * @brief 汇编代码
  * @param L Lua状态机指针
- * @return 返回1
- * @description Lua调用: bytes = binary:assemble(address, asm_code)
+ * @return 返回1或2 (成功返回字节码，失败返回nil和错误信息)
+ * @description Lua调用: bytes, err = binary:assemble(address, asm_code)
  */
 static int lua_elf_assemble(lua_State *L) {
     Elf_Binary_Wrapper *wrapper = check_elf_binary(L, 1);
@@ -1669,7 +1763,9 @@ static int lua_elf_assemble(lua_State *L) {
     
     if (!bytes || size == 0) {
         lua_pushnil(L);
-        return 1;
+        const char *err = lief_get_last_error();
+        lua_pushstring(L, err ? err : "Assemble failed");
+        return 2;
     }
     
     lua_pushlstring(L, (const char*)bytes, size);

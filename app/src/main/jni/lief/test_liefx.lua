@@ -553,8 +553,10 @@ print_header("反汇编功能测试")
 
 print_section("从入口点反汇编10条指令")
 local entry_addr = elf:entrypoint()
+print_kv("入口点地址", format_addr(entry_addr))
 if entry_addr and entry_addr > 0 then
-    local insts = elf:disassemble(entry_addr, 10)
+    -- size参数是字节数，ARM64每条指令4字节，所以40字节约10条指令
+    local insts, err = elf:disassemble(entry_addr, 100)
     if insts and #insts > 0 then
         print(string.format("  %-14s %-10s %-30s", "地址", "助记符", "操作数"))
         print("  " .. string.rep("-", 60))
@@ -565,7 +567,7 @@ if entry_addr and entry_addr > 0 then
                 inst.operands or ""))
         end
     else
-        print("  (反汇编失败或无指令)")
+        print("  反汇编失败: " .. (err or "未知错误"))
     end
 else
     print("  (无有效入口点)")
@@ -574,7 +576,7 @@ end
 print_section("反汇编指定缓冲区")
 -- 使用一些ARM64示例字节码 (MOV X0, #0; RET)
 local test_bytes = string.char(0x00, 0x00, 0x80, 0xD2, 0xC0, 0x03, 0x5F, 0xD6)
-local buf_insts = elf:disassemble_buffer(test_bytes, 0x1000)
+local buf_insts, buf_err = elf:disassemble_buffer(test_bytes, 0x1000)
 if buf_insts and #buf_insts > 0 then
     print("  测试字节码反汇编结果:")
     for i, inst in ipairs(buf_insts) do
@@ -584,7 +586,7 @@ if buf_insts and #buf_insts > 0 then
             inst.operands or ""))
     end
 else
-    print("  (缓冲区反汇编失败)")
+    print("  缓冲区反汇编失败: " .. (buf_err or "未知错误"))
 end
 
 print_section("按符号名反汇编")
@@ -615,7 +617,7 @@ print_header("汇编功能测试")
 print_section("汇编指令到字节码")
 -- 尝试汇编一条简单指令
 local asm_code = "mov x0, #0"
-local asm_bytes = elf:assemble(0x1000, asm_code)
+local asm_bytes, asm_err = elf:assemble(0x1000, asm_code)
 if asm_bytes and #asm_bytes > 0 then
     local hex = ""
     for i = 1, #asm_bytes do
@@ -624,7 +626,7 @@ if asm_bytes and #asm_bytes > 0 then
     print("  指令: " .. asm_code)
     print("  字节码: " .. hex)
 else
-    print("  (汇编失败，可能不支持当前架构)")
+    print("  汇编失败: " .. (asm_err or "不支持当前架构"))
 end
 
 print_section("多条指令汇编")
@@ -634,7 +636,7 @@ local multi_asm = [[
     add x0, x0, x1
     ret
 ]]
-local multi_bytes = elf:assemble(0x1000, multi_asm)
+local multi_bytes, multi_err = elf:assemble(0x1000, multi_asm)
 if multi_bytes and #multi_bytes > 0 then
     print("  汇编 " .. #multi_bytes .. " 字节")
     local hex = ""
@@ -644,7 +646,7 @@ if multi_bytes and #multi_bytes > 0 then
     end
     print("  " .. hex)
 else
-    print("  (多指令汇编失败)")
+    print("  多指令汇编失败: " .. (multi_err or "不支持当前架构"))
 end
 
 -- ============================================================
